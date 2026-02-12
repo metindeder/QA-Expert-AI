@@ -15,7 +15,6 @@ from src.utils.pdf_processor import extract_text_from_pdf
 st.set_page_config(page_title="QA Expert AI", layout="wide")
 
 # --- SESSION STATE MANAGEMENT ---
-# Ensures data persistence across Streamlit's rerun cycles
 if 'analysis_complete' not in st.session_state:
     st.session_state.analysis_complete = False
 if 'file_summary' not in st.session_state:
@@ -31,7 +30,6 @@ if 'session_id' not in st.session_state:
 with st.sidebar:
     st.header("System Settings")
     
-    # Dynamically fetch available models from Ollama
     import requests
     try:
         response = requests.get("http://localhost:11434/api/tags")
@@ -63,38 +61,31 @@ This agent analyzes your **Project Repositories** and **Requirement Documents** 
 Knowledge Graph and generate production-ready **Gherkin Test Scenarios**.
 """)
 
-tab1, tab2 = st.tabs(["📂 Upload Files/ZIP", "📍 Local Directory Path"])
+tab1, tab2 = st.tabs(["Upload Files/ZIP", "Local Directory Path"])
 
 files_to_process = []
 
-# --- FILE FILTERING LOGIC ---
 def is_valid_file(file_name):
-    """
-    Filters out non-relevant files like READMEs and media.
-    Supports all text-based source code files and PDFs.
-    """
     name_lower = file_name.lower()
     if name_lower == "readme.md":
         return False
-    
-    # Allowed: Source code, requirements, and text documentation
     valid_extensions = ('.py', '.pdf', '.txt', '.md', '.java', '.cpp', '.js', '.ts', '.c', '.cs', '.go')
     return name_lower.endswith(valid_extensions)
 
 # --- INPUT METHOD 1: DRAG & DROP ---
 with tab1:
     uploaded_files = st.file_uploader(
-        "Drop source code files, requirement PDFs, or project ZIPs here. (READMEs and media are automatically filtered)",
+        "Drop source code files, requirement PDFs, or project ZIPs here.",
         accept_multiple_files=True,
         type=['py', 'pdf', 'txt', 'zip', 'md', 'java', 'cpp', 'js', 'ts']
     )
 
 # --- INPUT METHOD 2: LOCAL DIRECTORY ---
 with tab2:
-    local_path_input = st.text_input("Enter the full local path of your project (e.g., C:/Users/Dev/Project)", "")
+    local_path_input = st.text_input("Enter the full local path of your project", "")
 
 # --- EXECUTION: ANALYSIS ---
-if st.button("🚀 Start Project Analysis"):
+if st.button("Start Project Analysis"):
     temp_dir = "data/temp_project"
     if os.path.exists(temp_dir):
         try: shutil.rmtree(temp_dir)
@@ -105,9 +96,6 @@ if st.button("🚀 Start Project Analysis"):
     full_context_summary = []
     
     with st.status("Filtering and indexing files...", expanded=True) as status:
-        st.write("Initializing Neuro-Symbolic Parser...")
-        
-        # Scenario A: Handle Uploaded Files
         if uploaded_files:
             for up_file in uploaded_files:
                 if up_file.name.endswith(".zip"):
@@ -124,13 +112,10 @@ if st.button("🚀 Start Project Analysis"):
                             f.write(up_file.getbuffer())
                         files_to_process.append(file_path)
 
-        # Scenario B: Handle Local Path
         elif local_path_input and os.path.isdir(local_path_input):
             for root, dirs, files in os.walk(local_path_input):
-                # Prune unnecessary directories
                 for skip in ['venv', '.git', '__pycache__', 'node_modules', '.idea', 'dist', 'build']:
                     if skip in dirs: dirs.remove(skip)
-                
                 for file in files:
                     if is_valid_file(file):
                         src_path = os.path.join(root, file)
@@ -138,7 +123,6 @@ if st.button("🚀 Start Project Analysis"):
                         shutil.copy2(src_path, dst_path)
                         files_to_process.append(dst_path)
 
-        # Process found files
         total_files = len(files_to_process)
         if total_files == 0:
             st.error("No valid source or requirement files found!")
@@ -146,27 +130,16 @@ if st.button("🚀 Start Project Analysis"):
             
         for i, file_path in enumerate(files_to_process):
             file_name = os.path.basename(file_path)
-            
-            # Use Graph Parser for code structure
             if not file_name.endswith((".pdf", ".txt", ".md")):
                 st.write(f"[{i+1}/{total_files}] Structural Code Analysis: {file_name}")
                 parser.parse_file(file_path)
                 full_context_summary.append(f"CODE: {file_name}")
-            
-            # Use PDF/Text extraction for documentation
             else:
                 st.write(f"[{i+1}/{total_files}] Reading Documentation: {file_name}")
-                if file_name.endswith(".pdf"):
-                    content = extract_text_from_pdf(file_path)
-                else:
-                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                        content = f.read()
-                
-                doc_id = f"DOC:{file_name}"
-                parser.graph.add_node(doc_id, type="requirement_doc", content=content)
+                content = extract_text_from_pdf(file_path) if file_name.endswith(".pdf") else open(file_path, "r", encoding="utf-8", errors="ignore").read()
+                parser.graph.add_node(f"DOC:{file_name}", type="requirement_doc", content=content)
                 full_context_summary.append(f"DOC: {file_name}")
 
-        st.write("Constructing Vector Knowledge Base...")
         vector_store = CodeVectorStore(collection_name=st.session_state.session_id)
         vector_store.add_graph_documents(parser.graph)
         status.update(label="Analysis Complete!", state="complete", expanded=False)
@@ -182,9 +155,12 @@ if st.session_state.analysis_complete:
     st.divider()
     col1, col2 = st.columns([1, 1])
     
+    files = st.session_state.file_summary
+    total_f = len(files)
+    
     with col1:
         st.info("Processed Project Assets")
-        for item in st.session_state.file_summary:
+        for item in files:
             icon = "📜" if "CODE" in item else "📄"
             st.markdown(f"{icon} `{item.split(': ')[1]}`")
         
@@ -193,42 +169,66 @@ if st.session_state.analysis_complete:
             m1.metric("Graph Nodes", st.session_state.node_count)
             m2.metric("Code Dependencies", st.session_state.edge_count)
         else:
-            st.success("✅ Knowledge Base Ready (Documentation-Only Mode)")
+            st.success("Knowledge Base Ready")
 
     with col2:
         st.subheader("AI Agent Generation")
+        
+        # --- DYNAMIC GENERATION MODE SELECTION ---
+        # If there's more than one file, show the strategy selection
+        if total_f > 1:
+            gen_mode = st.radio(
+                "Select Generation Strategy",
+                ["Global Consolidation (Recommended)", "Component-Wise (Individual Files)"],
+                help="Global mode de-duplicates scenarios, Component-Wise gives detailed results for every file."
+            )
+        else:
+            # For a single file, default to individual analysis without showing the radio
+            gen_mode = "Component-Wise (Individual Files)"
+            st.caption("Single file detected. Generating specific test scenarios...")
+        
         if st.button("Generate Test Scenarios"):
             vector_store = CodeVectorStore(collection_name=st.session_state.session_id)
             llm = LLMClient(model_name=model_name)
-            final_report = ""
             
             progress_bar = st.progress(0)
             status_box = st.empty()
-            
-            files = st.session_state.file_summary
-            total_files = len(files)
-            
-            # Dynamic Feature Header
             p_name = files[0].split(": ")[1].split(".")[0] if files else "Project"
-            final_report += f"Feature: Automated Tests for {p_name}\n\n"
-            
-            for i, f in enumerate(files):
-                fname = f.split(": ")[1]
-                status_box.info(f"Processing Logic: `{fname}` ({i+1}/{total_files})")
-                
-                query = f"Analyze structural logic of {fname} and generate Gherkin scenarios."
-                res = vector_store.search_similar(query, k=3)
-                
-                if res['documents']:
-                    context = "\n".join(res['documents'][0])
-                    meta = str(res['metadatas'][0])
-                    out = llm.generate_response(context, meta, query)
-                    final_report += f"# --- Source: {fname} ---\n{out}\n\n"
-                
-                progress_bar.progress((i+1)/total_files)
-            
-            status_box.success(f"Generation Complete: {total_files} components analyzed.")
-            
-            st.markdown("### 📝 Generated Gherkin Feature Set")
-            st.code(final_report, language="gherkin") # Copy button is automatic here
-            st.download_button("Download .feature File", final_report, "comprehensive_tests.feature")
+
+            # --- STRATEGY 1: COMPONENT-WISE ---
+            if gen_mode == "Component-Wise (Individual Files)":
+                final_report = f"Feature: Individual Component Tests for {p_name}\n\n"
+                for i, f in enumerate(files):
+                    fname = f.split(": ")[1]
+                    status_box.info(f"Processing: `{fname}` ({i+1}/{total_f})")
+                    query = f"Generate detailed Gherkin scenarios for the logic in {fname}."
+                    res = vector_store.search_similar(query, k=3)
+                    if res['documents']:
+                        context = "\n".join(res['documents'][0])
+                        out = llm.generate_response(context, str(res['metadatas'][0]), query)
+                        final_report += f"# --- Source: {fname} ---\n{out}\n\n"
+                    progress_bar.progress((i+1)/total_f)
+                status_box.success("Individual generation complete.")
+
+            # --- STRATEGY 2: GLOBAL CONSOLIDATION ---
+            else:
+                raw_knowledge_accumulator = ""
+                for i, f in enumerate(files):
+                    fname = f.split(": ")[1]
+                    status_box.info(f"Extracting Knowledge: `{fname}` ({i+1}/{total_f})")
+                    query = f"Create highly detailed Gherkin scenarios for the core logic in {fname}."
+                    res = vector_store.search_similar(query, k=3)
+                    if res['documents']:
+                        out = llm.generate_response("\n".join(res['documents'][0]), str(res['metadatas'][0]), query)
+                        raw_knowledge_accumulator += f"\n# RAW SOURCE {fname}:\n{out}\n"
+                    progress_bar.progress((i+1)/total_f * 0.6)
+
+                status_box.warning("Refining Master Suite...")
+                master_prompt = f"SYSTEM ROLE: Senior QA Architect. Merge these scenarios into ONE .feature file. REMOVE EXACT DUPLICATES.\n\nINPUT:\n{raw_knowledge_accumulator}"
+                final_report = llm.generate_response(master_prompt, "Project Global Context", "Generate Final Master Feature")
+                progress_bar.progress(100)
+                status_box.success("Global Consolidation Complete!")
+
+            st.markdown("###  Generated Feature Set")
+            st.code(final_report, language="gherkin")
+            st.download_button("Download .feature File", final_report, f"{p_name}_tests.feature")
