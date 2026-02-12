@@ -1,0 +1,14 @@
+# Python gereksizleri
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Ortam dosyaları
+.env
+/venv
+/env
+
+# Büyük Veriler ve Modeller (GitHub'a atma!)
+models/*.gguf
+data/vector_db/
+data/graph_db/

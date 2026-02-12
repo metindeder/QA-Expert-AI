@@ -1,0 +1,22 @@
+# --- LLM & AI Core ---
+ollama
+langchain
+langchain-community
+langchain-core
+
+# --- RAG & Vector DB ---
+chromadb
+sentence-transformers
+faiss-cpu
+
+# --- Graph & Symbolic AI (Novelty Kısmı) ---
+networkx          # Kod grafiği oluşturmak için
+matplotlib        # Grafiği görselleştirmek için
+tree-sitter       # Kodu "Symbolic" olarak analiz eden parser
+tree-sitter-languages
+
+# --- UI & Utilities ---
+streamlit
+python-dotenv
+pandas
+numpy
