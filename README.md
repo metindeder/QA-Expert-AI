@@ -28,11 +28,11 @@ QA Expert AI is a production-ready testing solution that bridges the gap between
 </p>
 <p align="center">
   <img src="screenshots/4.jpeg" width="32%" title="Component-Wise Output">
-  <img src="screenshots/5.jpeg" width="32%" title="Global Consolidation">
+  <img src="screenshots/7.jpeg" width="32%" title="Graph Nodes & Edges">
   <img src="screenshots/6.jpeg" width="32%" title="Master Test Suite">
 </p>
 <p align="center">
-  <img src="screenshots/7.jpeg" width="32%" title="Graph Nodes & Edges">
+  <img src="screenshots/5.jpeg" width="32%" title="Global Consolidation">
   <img src="screenshots/8.jpeg" width="32%" title="Code Dependencies">
   <img src="screenshots/9.jpeg" width="32%" title="Final Gherkin Export">
 </p>
@@ -79,3 +79,4 @@ QA Expert AI is a production-ready testing solution that bridges the gap between
 └── requirements.txt    # Library dependencies
 ```
 Maintained by: [Metin Deder - Fırat University Computer Engineering Student]
+
